@@ -1,7 +1,7 @@
 {
-  "name": "n8n-nodes-mixpost",
-  "version": "0.1.1",
-  "description": "This is an n8n community node. It lets you use Mixpost in your n8n workflows.",
+  "name": "n8n-nodes-gravitysocial",
+  "version": "0.1.12",
+  "description": "This is an n8n community node. It lets you use GravitySocial in your n8n workflows.",
   "keywords": [
     "social media",
     "social media scheduler",
@@ -10,14 +10,14 @@
     "n8n-community-node-package"
   ],
   "license": "MIT",
-  "homepage": "https://mixpost.app",
+  "homepage": "https://gravitywrite.com",
   "author": {
-    "name": "Botezatu Dima",
-    "email": "dima@inovector.com"
+    "name": "GravityWrite",
+    "email": "support@gravitywrite.com"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/inovector/n8n-nodes-mixpost.git"
+    "url": "git+https://github.com/websitelearners/gw-social-n8n-nodes.git"
   },
   "main": "index.js",
   "scripts": {
@@ -31,6 +31,9 @@
   "files": [
     "dist"
   ],
+  "dependencies": {
+    "form-data": "^4.0.0"
+  },
   "n8n": {
     "n8nNodesApiVersion": 1,
     "credentials": [

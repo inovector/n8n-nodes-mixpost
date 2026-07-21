@@ -1,8 +1,11 @@
-# n8n-nodes-mixpost
+# n8n-nodes-gravitysocial
 
-This is an n8n community node that lets you integrate [Mixpost](https://mixpost.app) with your n8n workflows.
+[![npm version](https://img.shields.io/npm/v/n8n-nodes-gravitysocial.svg)](https://www.npmjs.com/package/n8n-nodes-gravitysocial)
+[![npm downloads](https://img.shields.io/npm/dm/n8n-nodes-gravitysocial.svg)](https://www.npmjs.com/package/n8n-nodes-gravitysocial)
 
-Mixpost is a self-hosted social media management software that helps you schedule and manage your social media content across multiple platforms including Facebook, Twitter/X, Instagram, LinkedIn, Pinterest, TikTok, YouTube, and more.
+This is an n8n community node that lets you integrate [GravitySocial](https://social.gravitywrite.com) with your n8n workflows.
+
+GravitySocial is a self-hosted social media management software that helps you schedule and manage your social media content across multiple platforms including Facebook, Twitter/X, Instagram, LinkedIn, Pinterest, TikTok, YouTube, and more.
 
 [n8n](https://n8n.io/) is a workflow automation platform.
 
@@ -12,7 +15,7 @@ Mixpost is a self-hosted social media management software that helps you schedul
 
 1. Navigate to **Settings** → **Community Nodes** in your n8n instance
 2. Click **Install**
-3. Enter `n8n-nodes-mixpost` in the package name field
+3. Enter `n8n-nodes-gravitysocial` in the package name field
 4. Click **Install** to add it to your n8n instance
 
 ### Manual - Command Line Installation
@@ -34,10 +37,10 @@ cd ~/.n8n/nodes
 npm init -y
 ```
 
-Install the Mixpost node package:
+Install the GravitySocial node package:
 
 ```bash
-npm install n8n-nodes-mixpost
+npm install n8n-nodes-gravitysocial
 ```
 
 Restart your n8n instance to load the new node.
@@ -51,10 +54,10 @@ mkdir -p ~/.n8n/custom
 npm init -y
 ```
 
-Then, install the Mixpost node package:
+Then, install the GravitySocial node package:
 
 ```bash
-npm install n8n-nodes-mixpost
+npm install n8n-nodes-gravitysocial
 ```
 
 Restart n8n to load the new node.
@@ -101,21 +104,21 @@ Restart n8n to load the new node.
 ## 🔑 Credentials Setup
 
 ### Prerequisites
-1. A running Mixpost instance
+1. A running GravitySocial instance
 2. Admin access to generate API tokens
 
 ### Steps to Configure
 
-1. **Generate API Token in Mixpost:** 
-   - Read the [Mixpost API documentation](https://docs.mixpost.app/api/#generate-a-token) to learn how to generate an API token.
+1. **Generate API Token in GravitySocial:** 
+   - Read the [GravitySocial API documentation](https://docs.gravitywrite.com/api/#generate-a-token) to learn how to generate an API token.
 2. **Configure in n8n:**
    - In n8n, go to **Overview** → **Create Workflow**
    - Open nodes panel
-   - Search for "Mixpost"
-   - Add an **Mixpost** action to your workflow
+   - Search for "GravitySocial"
+   - Add an **GravitySocial** action to your workflow
    - Click on **Credentials** → **Create new credential**
    - Enter the following:
-     - **Mixpost URL**: Your Mixpost instance URL with core path (e.g., `https://mixpost.yourdomain.com/mixpost`)
+     - **GravitySocial URL**: Your GravitySocial instance URL with core path (e.g., `https://social.gravitywrite.com`)
      - **Access Token**: The token you generated in step 1
    - Click **Save**
 
@@ -123,21 +126,19 @@ Restart n8n to load the new node.
 
 All operations require a Workspace UUID. To find yours:
 
-1. Log in to Mixpost
+1. Log in to GravitySocial
 2. Navigate to **Admin Console** -> **Workspaces**
 3. Click **View** icon for your workspace.
 4. Find the UUID in the **Usage in API** section.
 
 ## 📊 Supported Social Platforms
 
-Mixpost supports posting to:
+GravitySocial supports posting to:
 - ✅ Facebook Pages
 - ✅ X
 - ✅ Instagram (Business accounts)
-- ✅ Threads
 - ✅ LinkedIn (Profiles & Pages)
 - ✅ Pinterest
-- ✅ TikTok
 - ✅ YouTube
 - ✅ Google Business Profile
 - ✅ Mastodon
@@ -168,8 +169,8 @@ Posts can be filtered by:
 
 ```bash
 # Clone the repository
-git clone https://github.com/inovector/n8n-nodes-mixpost.git
-cd n8n-nodes-mixpost
+git clone https://github.com/websitelearners/gw-social-n8n-nodes.git
+cd n8n-nodes-gravitysocial
 
 # Install dependencies
 npm install
@@ -193,25 +194,21 @@ npm test
 ## 📚 Resources
 
 - [n8n Community Nodes Documentation](https://docs.n8n.io/integrations/community-nodes/)
-- [Mixpost Documentation](https://docs.mixpost.app)
-- [Mixpost API Reference](https://docs.mixpost.app/api)
+- [GravitySocial Documentation](https://docs.gravitywrite.com)
+- [GravitySocial API Reference](https://docs.gravitywrite.com/api)
 - [n8n Workflow Examples](https://n8n.io/workflows)
-- [Report Issues](https://github.com/inovector/n8n-nodes-mixpost/issues)
+- [Report Issues](https://github.com/inovector/n8n-nodes-gravitysocial/issues)
 
 ## 📄 License
 
-[MIT License](https://github.com/inovector/n8n-nodes-mixpost/blob/master/LICENSE.md)
+[MIT License](https://github.com/inovector/n8n-nodes-gravitysocial/blob/master/LICENSE.md)
 
 ## 🤝 Support
 
 Need help? Here's how to get support:
 
-1. **Documentation First**: Check the [Mixpost docs](https://docs.mixpost.app)
-2. **GitHub Issues**: [Report bugs or request features](https://github.com/inovector/n8n-nodes-mixpost/issues)
-3. **Mixpost Community**: Join our community channels for help and discussions:
-   - 💬 [Discord Server](https://mixpost.app/discord) - Real-time chat support
-   - 🐦 [Facebook Group](https://www.facebook.com/groups/getmixpost) - Latest updates and announcements
-4. **n8n Community**: Ask in the [n8n community forum](https://community.n8n.io)
+1. **Documentation First**: Check the [GravitySocial docs](https://docs.gravitywrite.com)
+2. **n8n Community**: Ask in the [n8n community forum](https://community.n8n.io)
 
 ## 🎯 Contributing
 
@@ -223,29 +220,14 @@ We welcome contributions! Here's how you can help:
 - 📝 Improve documentation
 - 🔧 Submit pull requests
 
-### Development Workflow
-
-1. **Fork** the repository
-2. **Clone** your fork: `git clone https://github.com/YOUR_USERNAME/n8n-nodes-mixpost.git`
-3. **Create** a feature branch: `git checkout -b feature/amazing-feature`
-4. **Make** your changes and test thoroughly
-5. **Commit** with clear messages: `git commit -m 'Add amazing feature'`
-6. **Push** to your fork: `git push origin feature/amazing-feature`
-7. **Open** a Pull Request with a detailed description
-
-### Code Standards
-- Follow existing code style
-- Update documentation as needed
-- Run `npm run format` & `npm run lint`  before submitting
-
 ## 🙏 Acknowledgments
 
 - The n8n team for the amazing workflow automation platform
-- The Mixpost team behind the coolest self-hosted social media management tool
+- The GravitySocial team behind the coolest self-hosted social media management tool
 - All contributors who help improve this node
 
 ---
 
-**Made with ❤️ by [Inovector](https://inovector.com)**
+**Made with ❤️ by [GravityWrite](https://gravitywrite.com)**
 
 *Star ⭐ this repository if you find it helpful!*

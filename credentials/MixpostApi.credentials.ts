@@ -7,18 +7,18 @@ import {
 
 export class MixpostApi implements ICredentialType {
 	name = 'mixpostApi';
-	displayName = 'Mixpost API';
+	displayName = 'GravitySocial API';
 	documentationUrl = 'https://docs.mixpost.app/api/';
 	properties: INodeProperties[] = [
 		{
-			displayName: 'Mixpost URL',
+			displayName: 'GravitySocial URL',
 			name: 'url',
 			type: 'string',
 			default: '',
-			placeholder: 'https://your-mixpost-instance.com/mixpost',
+			placeholder: 'https://social.gravitywrite.com/',
 			required: true,
 			description:
-				'The base URL of your Mixpost instance and core path. Example: <code>https://your-mixpost-instance.com/mixpost</code>',
+				'The base URL of your GravitySocial instance and core path. Example: <code>https://social.gravitywrite.com</code>',
 		},
 		{
 			displayName: 'Access Token',

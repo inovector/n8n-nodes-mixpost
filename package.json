@@ -1,6 +1,6 @@
 {
   "name": "n8n-nodes-gravitysocial",
-  "version": "0.1.11",
+  "version": "0.1.12",
   "description": "This is an n8n community node. It lets you use GravitySocial in your n8n workflows.",
   "keywords": [
     "social media",
@@ -31,6 +31,9 @@
   "files": [
     "dist"
   ],
+  "dependencies": {
+    "form-data": "^4.0.0"
+  },
   "n8n": {
     "n8nNodesApiVersion": 1,
     "credentials": [

@@ -44,6 +44,10 @@ export class Mixpost implements INodeType {
 						value: 'media',
 					},
 					{
+						name: 'Media Folder',
+						value: 'mediaFolder',
+					},
+					{
 						name: 'Post',
 						value: 'post',
 					},
@@ -130,6 +134,45 @@ export class Mixpost implements INodeType {
 						value: 'upload',
 						description: 'Upload a new media file',
 						action: 'Upload a media file',
+					},
+				],
+				default: 'getAll',
+			},
+			// Media Folder Operations
+			{
+				displayName: 'Operation',
+				name: 'operation',
+				type: 'options',
+				noDataExpression: true,
+				displayOptions: {
+					show: {
+						resource: ['mediaFolder'],
+					},
+				},
+				options: [
+					{
+						name: 'Create',
+						value: 'create',
+						description: 'Create a media folder',
+						action: 'Create a media folder',
+					},
+					{
+						name: 'Delete',
+						value: 'delete',
+						description: 'Delete a media folder',
+						action: 'Delete a media folder',
+					},
+					{
+						name: 'Get Many',
+						value: 'getAll',
+						description: 'Get the whole media folder tree',
+						action: 'Get many media folders',
+					},
+					{
+						name: 'Update',
+						value: 'update',
+						description: 'Rename a media folder or move it under another',
+						action: 'Update a media folder',
 					},
 				],
 				default: 'getAll',
@@ -290,7 +333,8 @@ export class Mixpost implements INodeType {
 						operation: ['delete'],
 					},
 				},
-				description: 'Comma-separated list of media IDs to delete',
+				description:
+					'Comma-separated list of media IDs or UUIDs to delete, up to 500 per request. The two may be mixed.',
 			},
 			{
 				displayName: 'File',
@@ -326,7 +370,155 @@ export class Mixpost implements INodeType {
 						default: '',
 						description: 'Alt text for the media file',
 					},
+					{
+						displayName: 'Folder UUID',
+						name: 'folder',
+						type: 'string',
+						default: '',
+						description:
+							'UUID of the folder to file the media into. Leave empty to move it back to the root. An unknown folder is rejected.',
+					},
+					{
+						displayName: 'Name',
+						name: 'name',
+						type: 'string',
+						default: '',
+						description: 'The name of the media file',
+					},
 				],
+			},
+			{
+				displayName: 'Additional Fields',
+				name: 'additionalFields',
+				type: 'collection',
+				placeholder: 'Add Field',
+				default: {},
+				displayOptions: {
+					show: {
+						resource: ['media'],
+						operation: ['upload'],
+					},
+				},
+				options: [
+					{
+						displayName: 'Alt Text',
+						name: 'alt_text',
+						type: 'string',
+						default: '',
+						description: 'Alt text for the media file',
+					},
+					{
+						displayName: 'Folder UUID',
+						name: 'folder',
+						type: 'string',
+						default: '',
+						description:
+							'UUID of the folder to file the upload into. Leave empty to file it at the root.',
+					},
+				],
+			},
+			// Media Folder Fields
+			{
+				displayName: 'Folder UUID',
+				name: 'folderUuid',
+				type: 'string',
+				default: '',
+				required: true,
+				displayOptions: {
+					show: {
+						resource: ['mediaFolder'],
+						operation: ['update', 'delete'],
+					},
+				},
+				description: 'The UUID of the media folder',
+			},
+			{
+				displayName: 'Name',
+				name: 'name',
+				type: 'string',
+				default: '',
+				required: true,
+				displayOptions: {
+					show: {
+						resource: ['mediaFolder'],
+						operation: ['create'],
+					},
+				},
+				description: 'The name of the folder. Must be unique among its siblings.',
+			},
+			{
+				displayName: 'Additional Fields',
+				name: 'additionalFields',
+				type: 'collection',
+				placeholder: 'Add Field',
+				default: {},
+				displayOptions: {
+					show: {
+						resource: ['mediaFolder'],
+						operation: ['create'],
+					},
+				},
+				options: [
+					{
+						displayName: 'Parent UUID',
+						name: 'parent',
+						type: 'string',
+						default: '',
+						description:
+							'UUID of the folder to create this one in. Leave empty to create a root folder. Folders nest at most five levels deep.',
+					},
+				],
+			},
+			{
+				displayName: 'Update Fields',
+				name: 'updateFields',
+				type: 'collection',
+				placeholder: 'Add Field',
+				default: {},
+				displayOptions: {
+					show: {
+						resource: ['mediaFolder'],
+						operation: ['update'],
+					},
+				},
+				options: [
+					{
+						displayName: 'Move to Root',
+						name: 'moveToRoot',
+						type: 'boolean',
+						default: false,
+						description: 'Whether to move the folder to the root, ignoring Parent UUID',
+					},
+					{
+						displayName: 'Name',
+						name: 'name',
+						type: 'string',
+						default: '',
+						description: 'The new name of the folder',
+					},
+					{
+						displayName: 'Parent UUID',
+						name: 'parent',
+						type: 'string',
+						default: '',
+						description:
+							'UUID of the folder to move this one under. A folder cannot be moved into itself or into anything below it.',
+					},
+				],
+			},
+			{
+				displayName: 'Delete Media',
+				name: 'deleteMedia',
+				type: 'boolean',
+				default: false,
+				displayOptions: {
+					show: {
+						resource: ['mediaFolder'],
+						operation: ['delete'],
+					},
+				},
+				description:
+					'Whether to delete the files filed at or below the folder too. When off, they move up to the deleted folder&apos;s parent.',
 			},
 			// Tag Fields
 			{
@@ -966,6 +1158,124 @@ export class Mixpost implements INodeType {
 				default: 50,
 				description: 'Max number of results to return',
 			},
+			{
+				displayName: 'Filters',
+				name: 'filters',
+				type: 'collection',
+				placeholder: 'Add Filter',
+				default: {},
+				displayOptions: {
+					show: {
+						resource: ['media'],
+						operation: ['getAll'],
+					},
+				},
+				options: [
+					{
+						displayName: 'Favorite',
+						name: 'favorite',
+						type: 'boolean',
+						default: false,
+						description:
+							'Whether to return only the files the token&apos;s user has starred. Ignored while Keyword is set.',
+					},
+					{
+						displayName: 'Folder',
+						name: 'folder',
+						type: 'string',
+						default: '',
+						description:
+							'A folder UUID, or "root" for the files filed in no folder. Leave empty to list the whole library. Ignored while Keyword is set.',
+					},
+					{
+						displayName: 'Keyword',
+						name: 'keyword',
+						type: 'string',
+						default: '',
+						description:
+							'Return files whose name contains this text. A search reaches the whole library, so it overrides Folder and Favorite.',
+					},
+					{
+						displayName: 'MIME Types',
+						name: 'mime_types',
+						type: 'string',
+						default: '',
+						description: 'Return only these exact MIME types (comma-separated list)',
+					},
+					{
+						displayName: 'Sort',
+						name: 'sort',
+						type: 'options',
+						options: [
+							{
+								name: 'Name',
+								value: 'name',
+							},
+							{
+								name: 'Newest',
+								value: 'newest',
+							},
+							{
+								name: 'Oldest',
+								value: 'oldest',
+							},
+							{
+								name: 'Size',
+								value: 'size',
+							},
+						],
+						default: 'newest',
+						description: 'Order of the listing',
+					},
+					{
+						displayName: 'Type',
+						name: 'type',
+						type: 'options',
+						options: [
+							{
+								name: 'GIF',
+								value: 'gif',
+							},
+							{
+								name: 'Image',
+								value: 'image',
+							},
+							{
+								name: 'Video',
+								value: 'video',
+							},
+						],
+						default: 'image',
+						description: 'Return only files of this kind',
+					},
+					{
+						displayName: 'Usage',
+						name: 'usage',
+						type: 'options',
+						options: [
+							{
+								name: 'Draft',
+								value: 'draft',
+							},
+							{
+								name: 'Published',
+								value: 'published',
+							},
+							{
+								name: 'Scheduled',
+								value: 'scheduled',
+							},
+							{
+								name: 'Unused',
+								value: 'unused',
+							},
+						],
+						default: 'unused',
+						description:
+							'Return only files used this way. A file sits in the strongest bucket it qualifies for.',
+					},
+				],
+			},
 			// Media/Tag Get All
 			// {
 			// 	displayName: 'Return All',
@@ -1067,6 +1377,26 @@ export class Mixpost implements INodeType {
 						endpoint = `/api/${workspaceUuid}/media`;
 
 						qs.limit = this.getNodeParameter('limit', i) as number;
+
+						const filters = this.getNodeParameter('filters', i) as IDataObject;
+
+						for (const key of ['folder', 'type', 'keyword', 'usage', 'sort'] as const) {
+							if (filters[key]) {
+								qs[key] = filters[key];
+							}
+						}
+						if (filters.favorite) {
+							qs.favorite = 1;
+						}
+						if (filters.mime_types) {
+							const mimeTypes = (filters.mime_types as string)
+								.split(',')
+								.map((mimeType) => mimeType.trim())
+								.filter((mimeType) => mimeType);
+							if (mimeTypes.length > 0) {
+								qs.mime_types = mimeTypes;
+							}
+						}
 					} else if (operation === 'get') {
 						requestMethod = 'GET';
 						const mediaUuid = this.getNodeParameter('mediaUuid', i) as string;
@@ -1097,6 +1427,14 @@ export class Mixpost implements INodeType {
 						const formData = new FormData();
 						formData.append('file', blob, dataBinary.data.fileName);
 
+						const additionalFields = this.getNodeParameter('additionalFields', i) as IDataObject;
+						if (additionalFields.alt_text) {
+							formData.append('alt_text', additionalFields.alt_text as string);
+						}
+						if (additionalFields.folder) {
+							formData.append('folder', additionalFields.folder as string);
+						}
+
 						// Set form data instead of JSON body
 						body = formData;
 					} else if (operation === 'update') {
@@ -1108,6 +1446,13 @@ export class Mixpost implements INodeType {
 						if (updateFields.alt_text) {
 							body.alt_text = updateFields.alt_text;
 						}
+						if (updateFields.name) {
+							body.name = updateFields.name;
+						}
+						// Naming the key is what asks for the move, so an empty folder files at the root.
+						if (updateFields.folder !== undefined) {
+							body.folder = updateFields.folder || null;
+						}
 					} else if (operation === 'delete') {
 						requestMethod = 'DELETE';
 						endpoint = `/api/${workspaceUuid}/media`;
@@ -1117,6 +1462,43 @@ export class Mixpost implements INodeType {
 							.map((id) => id.trim())
 							.filter((id) => id);
 						body.items = mediaIds;
+					}
+				} else if (resource === 'mediaFolder') {
+					if (operation === 'getAll') {
+						requestMethod = 'GET';
+						endpoint = `/api/${workspaceUuid}/media/folders`;
+					} else if (operation === 'create') {
+						requestMethod = 'POST';
+						endpoint = `/api/${workspaceUuid}/media/folders`;
+
+						body.name = this.getNodeParameter('name', i) as string;
+
+						const additionalFields = this.getNodeParameter('additionalFields', i) as IDataObject;
+						if (additionalFields.parent) {
+							body.parent = additionalFields.parent;
+						}
+					} else if (operation === 'update') {
+						requestMethod = 'PUT';
+						const folderUuid = this.getNodeParameter('folderUuid', i) as string;
+						endpoint = `/api/${workspaceUuid}/media/folders/${folderUuid}`;
+
+						const updateFields = this.getNodeParameter('updateFields', i) as IDataObject;
+						if (updateFields.name) {
+							body.name = updateFields.name;
+						}
+						// Sending the key is what asks for the move, and only an explicit request
+						// moves a folder to the root — an empty Parent UUID means "leave it where it is".
+						if (updateFields.moveToRoot) {
+							body.parent = null;
+						} else if (updateFields.parent) {
+							body.parent = updateFields.parent;
+						}
+					} else if (operation === 'delete') {
+						requestMethod = 'DELETE';
+						const folderUuid = this.getNodeParameter('folderUuid', i) as string;
+						endpoint = `/api/${workspaceUuid}/media/folders/${folderUuid}`;
+
+						body.delete_media = this.getNodeParameter('deleteMedia', i) as boolean;
 					}
 				} else if (resource === 'tag') {
 					if (operation === 'getAll') {

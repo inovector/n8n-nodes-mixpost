@@ -83,11 +83,19 @@ Restart n8n to load the new node.
 ### 🖼️ Media
 | Operation | Description |
 |-----------|-------------|
-| **Upload** | Upload images or videos |
+| **Upload** | Upload images or videos, optionally filed into a folder and with alt text |
 | **Get** | Retrieve a specific media file by UUID |
-| **Get Many** | List all media files in your workspace |
-| **Update** | Update media file data (Alt Text) |
-| **Delete** | Delete a media file from your workspace |
+| **Get Many** | List media files, filtered by folder, type, keyword, usage or favourites |
+| **Update** | Update a media file's name, alt text, or the folder it is filed in |
+| **Delete** | Delete media files by ID or UUID, up to 500 per request |
+
+### 📁 Media Folders
+| Operation | Description |
+|-----------|-------------|
+| **Create** | Create a folder, at the root or inside another |
+| **Get Many** | Retrieve the whole folder tree, with parents and file counts |
+| **Update** | Rename a folder or move it under another |
+| **Delete** | Delete a folder, keeping or deleting the files inside it |
 
 ### 🏷️ Tags
 | Operation | Description |
@@ -156,6 +164,15 @@ Posts can be filtered by:
 - **Account ID**: Filter by specific social account
 - **Tag**: Filter by tag name
 - **Page**: Navigate through paginated results
+
+Media can be filtered by:
+- **Folder**: A folder UUID, or `root` for files filed in no folder
+- **Type**: image, gif, video
+- **MIME Types**: Exact MIME types, as a comma-separated list
+- **Keyword**: Matches the file name. A search reaches the whole library, so it overrides Folder and Favorite.
+- **Usage**: published, scheduled, draft, unused
+- **Favorite**: Only the files the token's user has starred
+- **Sort**: newest, oldest, name, size
 
 ## 🛠️ Development
 

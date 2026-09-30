@@ -67,18 +67,30 @@ Restart n8n to load the new node.
 | **Create** | Create a new social media post with content, media, and scheduling options |
 | **Get** | Retrieve a specific post by UUID |
 | **Get Many** | Retrieve multiple posts with filtering by status, account, or tags |
-| **Update** | Update an existing post's content, media, or schedule |
+| **Update** | Replace a post's accounts, tags, versions and schedule. Anything left out is removed, so send the whole post |
 | **Delete** | Delete a single post |
 | **Delete Bulk** | Delete multiple posts at once |
-| **Schedule** | Schedule a post |
+| **Schedule** | Schedule a post at its current time or at a new one, optionally with its own time for some accounts, or publish it now |
 | **Add to Queue** | Add a post to the publishing queue |
 | **Approve** | Approve a post for publishing |
+| **Retry Account** | Publish a post again to an account where it failed |
 
 ### 👥 Accounts
 | Operation | Description |
 |-----------|-------------|
 | **Get** | Retrieve details of a specific social media account |
 | **Get Many** | List all connected social media accounts in your workspace |
+
+### 📈 Analytics
+| Operation | Description |
+|-----------|-------------|
+| **Get Summary** | Workspace analytics for a period: followers, growth, posts, audience chart and leaderboard ([reference](https://docs.mixpost.app/api/reference/get-analytics-summary)) |
+| **Get Account Analytics** | One type of analytics of an account — overview, content, insights and more, depending on the provider ([reference](https://docs.mixpost.app/api/reference/get-account-analytics)) |
+| **Get Post Analytics** | How a published post performed on each account it went out to ([reference](https://docs.mixpost.app/api/reference/get-post-analytics)) |
+| **Get Posting Times** | The best weekdays and hours to post, learned from past posts ([reference](https://docs.mixpost.app/api/reference/get-posting-times)) |
+| **Get Best Times** | The next best date and time to post for each account ([reference](https://docs.mixpost.app/api/reference/get-best-posting-times)) |
+
+Analytics periods and dates are UTC days, and a custom range may span at most 366 days. Posting times and best times are given in the requested timezone.
 
 ### 🖼️ Media
 | Operation | Description |
@@ -109,7 +121,7 @@ Restart n8n to load the new node.
 ## 🔑 Credentials Setup
 
 ### Prerequisites
-1. A running Mixpost instance
+1. A running Mixpost instance on the latest Mixpost Pro v7 or Mixpost Enterprise v8. Version 1.0 of this node does not support older Mixpost versions.
 2. Admin access to generate API tokens
 
 ### Steps to Configure

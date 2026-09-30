@@ -1,5 +1,7 @@
 import {
 	IExecuteFunctions,
+	ILoadOptionsFunctions,
+	INodeListSearchResult,
 	INodeExecutionData,
 	INodeType,
 	INodeTypeDescription,
@@ -164,16 +166,74 @@ export class Mixpost implements INodeType {
 						name: 'Tag',
 						value: 'tag',
 					},
+					{
+						name: 'Workspace',
+						value: 'workspace',
+					},
 				],
 				default: 'post',
 			},
 			{
-				displayName: 'Workspace UUID',
+				displayName: 'Workspace',
 				name: 'workspaceUuid',
-				type: 'string',
-				default: '',
+				type: 'resourceLocator',
+				default: { mode: 'list', value: '' },
 				required: true,
-				description: 'The UUID of the workspace',
+				displayOptions: {
+					hide: {
+						resource: ['workspace'],
+					},
+				},
+				description: 'The workspace to work in',
+				modes: [
+					{
+						displayName: 'From List',
+						name: 'list',
+						type: 'list',
+						placeholder: 'Select a workspace...',
+						typeOptions: {
+							searchListMethod: 'searchWorkspaces',
+							searchable: true,
+						},
+					},
+					{
+						displayName: 'By UUID',
+						name: 'uuid',
+						type: 'string',
+						placeholder: 'e.g. 9b1e5f4a-3c2d-4a7b-8e6f-1d2c3b4a5e6f',
+						validation: [
+							{
+								type: 'regex',
+								properties: {
+									regex:
+										'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$',
+									errorMessage: 'Not a valid workspace UUID',
+								},
+							},
+						],
+					},
+				],
+			},
+			// Workspace Operations
+			{
+				displayName: 'Operation',
+				name: 'operation',
+				type: 'options',
+				noDataExpression: true,
+				displayOptions: {
+					show: {
+						resource: ['workspace'],
+					},
+				},
+				options: [
+					{
+						name: 'Get Many',
+						value: 'getAll',
+						description: 'Get the workspaces the access token can reach',
+						action: 'Get many workspaces',
+					},
+				],
+				default: 'getAll',
 			},
 			// Account Operations
 			{
@@ -1842,6 +1902,39 @@ export class Mixpost implements INodeType {
 		],
 	};
 
+	methods = {
+		listSearch: {
+			async searchWorkspaces(
+				this: ILoadOptionsFunctions,
+				filter?: string,
+			): Promise<INodeListSearchResult> {
+				const credentials = await this.getCredentials('mixpostApi');
+				const baseUrl = (credentials.url as string).replace(/\/$/, '');
+
+				const response = await this.helpers.httpRequest({
+					method: 'GET',
+					url: `${baseUrl}/api/workspaces`,
+					headers: {
+						Accept: 'application/json',
+						Authorization: `Bearer ${credentials.accessToken as string}`,
+					},
+				});
+
+				const workspaces = ((response?.data as IDataObject[]) || []).filter(
+					(workspace) =>
+						!filter || (workspace.name as string).toLowerCase().includes(filter.toLowerCase()),
+				);
+
+				return {
+					results: workspaces.map((workspace) => ({
+						name: workspace.name as string,
+						value: workspace.uuid as string,
+					})),
+				};
+			},
+		},
+	};
+
 	async execute(this: IExecuteFunctions): Promise<INodeExecutionData[][]> {
 		const items = this.getInputData();
 		const returnData: IDataObject[] = [];
@@ -1861,9 +1954,15 @@ export class Mixpost implements INodeType {
 				let body: any = {};
 				let qs: IDataObject = {};
 
-				const workspaceUuid = this.getNodeParameter('workspaceUuid', i) as string;
+				const workspaceUuid =
+					resource === 'workspace'
+						? ''
+						: (this.getNodeParameter('workspaceUuid', i, '', { extractValue: true }) as string);
 
-				if (resource === 'account') {
+				if (resource === 'workspace') {
+					requestMethod = 'GET';
+					endpoint = '/api/workspaces';
+				} else if (resource === 'account') {
 					if (operation === 'get') {
 						requestMethod = 'GET';
 						const accountUuid = this.getNodeParameter('accountUuid', i) as string;

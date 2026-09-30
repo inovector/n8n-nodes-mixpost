@@ -75,6 +75,11 @@ Restart n8n to load the new node.
 | **Approve** | Approve a post for publishing |
 | **Retry Account** | Publish a post again to an account where it failed |
 
+### 🏢 Workspaces
+| Operation | Description |
+|-----------|-------------|
+| **Get Many** | List the workspaces your access token can reach, with your role in each |
+
 ### 👥 Accounts
 | Operation | Description |
 |-----------|-------------|
@@ -141,12 +146,10 @@ Analytics periods and dates are UTC days, and a custom range may span at most 36
 
 ## 🔧 Workspace UUID
 
-All operations require a Workspace UUID. To find yours:
+Every operation except **Workspace → Get Many** works in one workspace. Pick it in the **Workspace** field:
 
-1. Log in to Mixpost
-2. Navigate to **Admin Console** -> **Workspaces**
-3. Click **View** icon for your workspace.
-4. Find the UUID in the **Usage in API** section.
+- **From List** — choose from the workspaces your access token can reach, searchable by name.
+- **By UUID** — paste a UUID, or map one from an expression. Workspace → Get Many returns the `uuid` of each workspace.
 
 ## 📊 Supported Social Platforms
 

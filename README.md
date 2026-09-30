@@ -67,12 +67,18 @@ Restart n8n to load the new node.
 | **Create** | Create a new social media post with content, media, and scheduling options |
 | **Get** | Retrieve a specific post by UUID |
 | **Get Many** | Retrieve multiple posts with filtering by status, account, or tags |
-| **Update** | Update an existing post's content, media, or schedule |
+| **Update** | Replace a post's accounts, tags, versions and schedule. Anything left out is removed, so send the whole post |
 | **Delete** | Delete a single post |
 | **Delete Bulk** | Delete multiple posts at once |
-| **Schedule** | Schedule a post |
+| **Schedule** | Schedule a post at its current time or at a new one, optionally with its own time for some accounts, or publish it now |
 | **Add to Queue** | Add a post to the publishing queue |
 | **Approve** | Approve a post for publishing |
+| **Retry Account** | Publish a post again to an account where it failed |
+
+### 🏢 Workspaces
+| Operation | Description |
+|-----------|-------------|
+| **Get Many** | List the workspaces your access token can reach, with your role in each |
 
 ### 👥 Accounts
 | Operation | Description |
@@ -80,14 +86,33 @@ Restart n8n to load the new node.
 | **Get** | Retrieve details of a specific social media account |
 | **Get Many** | List all connected social media accounts in your workspace |
 
+### 📈 Analytics
+| Operation | Description |
+|-----------|-------------|
+| **Get Summary** | Workspace analytics for a period: followers, growth, posts, audience chart and leaderboard ([reference](https://docs.mixpost.app/api/reference/get-analytics-summary)) |
+| **Get Account Analytics** | One type of analytics of an account — overview, content, insights and more, depending on the provider ([reference](https://docs.mixpost.app/api/reference/get-account-analytics)) |
+| **Get Post Analytics** | How a published post performed on each account it went out to ([reference](https://docs.mixpost.app/api/reference/get-post-analytics)) |
+| **Get Posting Times** | The best weekdays and hours to post, learned from past posts ([reference](https://docs.mixpost.app/api/reference/get-posting-times)) |
+| **Get Best Times** | The next best date and time to post for each account ([reference](https://docs.mixpost.app/api/reference/get-best-posting-times)) |
+
+Analytics periods and dates are UTC days, and a custom range may span at most 366 days. Posting times and best times are given in the requested timezone.
+
 ### 🖼️ Media
 | Operation | Description |
 |-----------|-------------|
-| **Upload** | Upload images or videos |
+| **Upload** | Upload images or videos, optionally filed into a folder and with alt text |
 | **Get** | Retrieve a specific media file by UUID |
-| **Get Many** | List all media files in your workspace |
-| **Update** | Update media file data (Alt Text) |
-| **Delete** | Delete a media file from your workspace |
+| **Get Many** | List media files, filtered by folder, type, keyword, usage or favourites |
+| **Update** | Update a media file's name, alt text, or the folder it is filed in |
+| **Delete** | Delete media files by ID or UUID, up to 500 per request |
+
+### 📁 Media Folders
+| Operation | Description |
+|-----------|-------------|
+| **Create** | Create a folder, at the root or inside another |
+| **Get Many** | Retrieve the whole folder tree, with parents and file counts |
+| **Update** | Rename a folder or move it under another |
+| **Delete** | Delete a folder, keeping or deleting the files inside it |
 
 ### 🏷️ Tags
 | Operation | Description |
@@ -101,7 +126,7 @@ Restart n8n to load the new node.
 ## 🔑 Credentials Setup
 
 ### Prerequisites
-1. A running Mixpost instance
+1. A running Mixpost instance on the latest Mixpost Pro v7 or Mixpost Enterprise v8. Version 1.0 of this node does not support older Mixpost versions.
 2. Admin access to generate API tokens
 
 ### Steps to Configure
@@ -121,12 +146,10 @@ Restart n8n to load the new node.
 
 ## 🔧 Workspace UUID
 
-All operations require a Workspace UUID. To find yours:
+Every operation except **Workspace → Get Many** works in one workspace. Pick it in the **Workspace** field:
 
-1. Log in to Mixpost
-2. Navigate to **Admin Console** -> **Workspaces**
-3. Click **View** icon for your workspace.
-4. Find the UUID in the **Usage in API** section.
+- **From List** — choose from the workspaces your access token can reach, searchable by name.
+- **By UUID** — paste a UUID, or map one from an expression. Workspace → Get Many returns the `uuid` of each workspace.
 
 ## 📊 Supported Social Platforms
 
@@ -156,6 +179,15 @@ Posts can be filtered by:
 - **Account ID**: Filter by specific social account
 - **Tag**: Filter by tag name
 - **Page**: Navigate through paginated results
+
+Media can be filtered by:
+- **Folder**: A folder UUID, or `root` for files filed in no folder
+- **Type**: image, gif, video
+- **MIME Types**: Exact MIME types, as a comma-separated list
+- **Keyword**: Matches the file name. A search reaches the whole library, so it overrides Folder and Favorite.
+- **Usage**: published, scheduled, draft, unused
+- **Favorite**: Only the files the token's user has starred
+- **Sort**: newest, oldest, name, size
 
 ## 🛠️ Development
 

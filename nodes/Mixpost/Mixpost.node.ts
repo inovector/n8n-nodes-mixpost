@@ -1,5 +1,7 @@
 import {
 	IExecuteFunctions,
+	ILoadOptionsFunctions,
+	INodeListSearchResult,
 	INodeExecutionData,
 	INodeType,
 	INodeTypeDescription,
@@ -7,6 +9,111 @@ import {
 	NodeConnectionType,
 	NodeOperationError,
 } from 'n8n-workflow';
+
+function toIds(value: string): number[] {
+	return value
+		.split(',')
+		.map((id) => parseInt(id.trim()))
+		.filter((id) => !isNaN(id));
+}
+
+function toDateAndTime(value: string): { date: string; time: string } {
+	const dateObj = new Date(value);
+
+	const year = dateObj.getFullYear();
+	const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+	const day = String(dateObj.getDate()).padStart(2, '0');
+	const hours = String(dateObj.getHours()).padStart(2, '0');
+	const minutes = String(dateObj.getMinutes()).padStart(2, '0');
+
+	return { date: `${year}-${month}-${day}`, time: `${hours}:${minutes}` };
+}
+
+function buildAccountsSchedule(data: IDataObject): IDataObject[] {
+	const entries = (data.departure as IDataObject[]) || [];
+
+	return entries
+		.filter((entry) => entry.accountId && entry.dateTime)
+		.map((entry) => ({
+			account_id: entry.accountId,
+			...toDateAndTime(entry.dateTime as string),
+		}));
+}
+
+function buildVersions(versionItems: IDataObject[]): IDataObject[] {
+	return versionItems.map((versionItem, index) => {
+		const version: any = {
+			// Apply defaults for first version only
+			account_id:
+				versionItem.account_id !== undefined ? versionItem.account_id : index === 0 ? 0 : null,
+			is_original:
+				versionItem.is_original !== undefined
+					? versionItem.is_original
+					: index === 0
+					? true
+					: false,
+			content: [],
+		};
+
+		const contentData = (versionItem.content as IDataObject) || {};
+		const contentItems = (contentData.contentItem as IDataObject[]) || [];
+
+		version.content = contentItems.map((item) => {
+			const contentItem: any = {};
+
+			if (item.body !== undefined && item.body !== '') {
+				contentItem.body = item.body;
+			}
+
+			if (item.url !== undefined && item.url !== '') {
+				contentItem.url = item.url;
+			}
+
+			contentItem.media =
+				item.media !== undefined && item.media !== '' ? toIds(item.media as string) : [];
+
+			return contentItem;
+		});
+
+		if (version.content.length === 0) {
+			version.content = [{ body: '', media: [] }];
+		}
+
+		const optionsData = (versionItem.options as IDataObject) || {};
+		const optionItems = (optionsData.option as IDataObject[]) || [];
+
+		if (optionItems.length > 0) {
+			version.options = {};
+
+			optionItems.forEach((optionItem) => {
+				const provider = optionItem.provider as string;
+				const key = optionItem.key as string;
+				const value = optionItem.value as string;
+
+				if (!provider || !key) {
+					return;
+				}
+
+				if (!version.options[provider]) {
+					version.options[provider] = {};
+				}
+
+				// Try to parse value as boolean or number
+				if (value === 'true') {
+					version.options[provider][key] = true;
+				} else if (value === 'false') {
+					version.options[provider][key] = false;
+				} else if (!isNaN(Number(value))) {
+					version.options[provider][key] = Number(value);
+				} else {
+					version.options[provider][key] = value;
+				}
+			});
+		}
+
+		return version;
+	});
+}
 
 export class Mixpost implements INodeType {
 	description: INodeTypeDescription = {
@@ -40,8 +147,16 @@ export class Mixpost implements INodeType {
 						value: 'account',
 					},
 					{
+						name: 'Analytics',
+						value: 'analytics',
+					},
+					{
 						name: 'Media',
 						value: 'media',
+					},
+					{
+						name: 'Media Folder',
+						value: 'mediaFolder',
 					},
 					{
 						name: 'Post',
@@ -51,16 +166,74 @@ export class Mixpost implements INodeType {
 						name: 'Tag',
 						value: 'tag',
 					},
+					{
+						name: 'Workspace',
+						value: 'workspace',
+					},
 				],
 				default: 'post',
 			},
 			{
-				displayName: 'Workspace UUID',
+				displayName: 'Workspace',
 				name: 'workspaceUuid',
-				type: 'string',
-				default: '',
+				type: 'resourceLocator',
+				default: { mode: 'list', value: '' },
 				required: true,
-				description: 'The UUID of the workspace',
+				displayOptions: {
+					hide: {
+						resource: ['workspace'],
+					},
+				},
+				description: 'The workspace to work in',
+				modes: [
+					{
+						displayName: 'From List',
+						name: 'list',
+						type: 'list',
+						placeholder: 'Select a workspace...',
+						typeOptions: {
+							searchListMethod: 'searchWorkspaces',
+							searchable: true,
+						},
+					},
+					{
+						displayName: 'By UUID',
+						name: 'uuid',
+						type: 'string',
+						placeholder: 'e.g. 9b1e5f4a-3c2d-4a7b-8e6f-1d2c3b4a5e6f',
+						validation: [
+							{
+								type: 'regex',
+								properties: {
+									regex:
+										'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$',
+									errorMessage: 'Not a valid workspace UUID',
+								},
+							},
+						],
+					},
+				],
+			},
+			// Workspace Operations
+			{
+				displayName: 'Operation',
+				name: 'operation',
+				type: 'options',
+				noDataExpression: true,
+				displayOptions: {
+					show: {
+						resource: ['workspace'],
+					},
+				},
+				options: [
+					{
+						name: 'Get Many',
+						value: 'getAll',
+						description: 'Get the workspaces the access token can reach',
+						action: 'Get many workspaces',
+					},
+				],
+				default: 'getAll',
 			},
 			// Account Operations
 			{
@@ -88,6 +261,51 @@ export class Mixpost implements INodeType {
 					},
 				],
 				default: 'getAll',
+			},
+			// Analytics Operations
+			{
+				displayName: 'Operation',
+				name: 'operation',
+				type: 'options',
+				noDataExpression: true,
+				displayOptions: {
+					show: {
+						resource: ['analytics'],
+					},
+				},
+				options: [
+					{
+						name: 'Get Account Analytics',
+						value: 'getAccount',
+						description: 'Get one type of analytics of an account for a period',
+						action: 'Get the analytics of an account',
+					},
+					{
+						name: 'Get Best Times',
+						value: 'getBestTimes',
+						description: 'Get the next best date and time to post for each account',
+						action: 'Get the next best time for each account',
+					},
+					{
+						name: 'Get Post Analytics',
+						value: 'getPost',
+						description: 'Get how a published post performed on each account',
+						action: 'Get the analytics of a post',
+					},
+					{
+						name: 'Get Posting Times',
+						value: 'getPostingTimes',
+						description: 'Get the best weekdays and hours to post, learned from past posts',
+						action: 'Get the best times to post',
+					},
+					{
+						name: 'Get Summary',
+						value: 'getSummary',
+						description: 'Get the analytics summary of the workspace for a period',
+						action: 'Get the analytics summary',
+					},
+				],
+				default: 'getSummary',
 			},
 			// Media Operations
 			{
@@ -130,6 +348,45 @@ export class Mixpost implements INodeType {
 						value: 'upload',
 						description: 'Upload a new media file',
 						action: 'Upload a media file',
+					},
+				],
+				default: 'getAll',
+			},
+			// Media Folder Operations
+			{
+				displayName: 'Operation',
+				name: 'operation',
+				type: 'options',
+				noDataExpression: true,
+				displayOptions: {
+					show: {
+						resource: ['mediaFolder'],
+					},
+				},
+				options: [
+					{
+						name: 'Create',
+						value: 'create',
+						description: 'Create a media folder',
+						action: 'Create a media folder',
+					},
+					{
+						name: 'Delete',
+						value: 'delete',
+						description: 'Delete a media folder',
+						action: 'Delete a media folder',
+					},
+					{
+						name: 'Get Many',
+						value: 'getAll',
+						description: 'Get the whole media folder tree',
+						action: 'Get many media folders',
+					},
+					{
+						name: 'Update',
+						value: 'update',
+						description: 'Rename a media folder or move it under another',
+						action: 'Update a media folder',
 					},
 				],
 				default: 'getAll',
@@ -187,6 +444,12 @@ export class Mixpost implements INodeType {
 						value: 'getAll',
 						description: 'Get many posts',
 						action: 'Get many posts',
+					},
+					{
+						name: 'Retry Account',
+						value: 'retry',
+						description: 'Publish a post again to an account where it failed',
+						action: 'Retry a failed account of a post',
 					},
 					{
 						name: 'Schedule',
@@ -263,6 +526,269 @@ export class Mixpost implements INodeType {
 				},
 				description: 'The UUID of the account',
 			},
+			// Analytics Fields
+			{
+				displayName: 'Account UUID',
+				name: 'accountUuid',
+				type: 'string',
+				default: '',
+				required: true,
+				displayOptions: {
+					show: {
+						resource: ['analytics'],
+						operation: ['getAccount'],
+					},
+				},
+				description: 'The UUID of the account',
+			},
+			{
+				displayName: 'Post UUID',
+				name: 'postUuid',
+				type: 'string',
+				default: '',
+				required: true,
+				displayOptions: {
+					show: {
+						resource: ['analytics'],
+						operation: ['getPost'],
+					},
+				},
+				description: 'The UUID of a published post',
+			},
+			{
+				displayName: 'Options',
+				name: 'analyticsOptions',
+				type: 'collection',
+				placeholder: 'Add Option',
+				default: {},
+				displayOptions: {
+					show: {
+						resource: ['analytics'],
+						operation: ['getSummary', 'getAccount'],
+					},
+				},
+				options: [
+					{
+						displayName: 'Date From',
+						name: 'dateFrom',
+						type: 'dateTime',
+						default: '',
+						description:
+							'First day of a custom range (UTC). Use together with Date To; the range may span at most 366 days and takes precedence over Period.',
+					},
+					{
+						displayName: 'Date To',
+						name: 'dateTo',
+						type: 'dateTime',
+						default: '',
+						description: 'Last day of a custom range (UTC), on or after Date From',
+					},
+					{
+						displayName: 'Page',
+						name: 'page',
+						type: 'number',
+						typeOptions: {
+							minValue: 1,
+						},
+						default: 1,
+						displayOptions: {
+							show: {
+								'/operation': ['getAccount'],
+							},
+						},
+						description: 'Page to return for the Content and Reviews types',
+					},
+					{
+						displayName: 'Per Page',
+						name: 'perPage',
+						type: 'number',
+						typeOptions: {
+							minValue: 1,
+							maxValue: 50,
+						},
+						default: 25,
+						displayOptions: {
+							show: {
+								'/operation': ['getAccount'],
+							},
+						},
+						description: 'Items per page for the Content and Reviews types',
+					},
+					{
+						displayName: 'Period',
+						name: 'period',
+						type: 'options',
+						options: [
+							{
+								name: 'Last 3 Months',
+								value: 'last_3_months',
+							},
+							{
+								name: 'Last Month',
+								value: 'last_month',
+							},
+							{
+								name: 'Last Week',
+								value: 'last_week',
+							},
+							{
+								name: 'This Month',
+								value: 'this_month',
+							},
+							{
+								name: 'This Week',
+								value: 'this_week',
+							},
+							{
+								name: 'This Year',
+								value: 'this_year',
+							},
+						],
+						default: 'this_month',
+						description: 'Reporting period, in UTC',
+					},
+					{
+						displayName: 'Sort By',
+						name: 'sortBy',
+						type: 'string',
+						default: '',
+						displayOptions: {
+							show: {
+								'/operation': ['getAccount'],
+							},
+						},
+						placeholder: 'IMPRESSION_COUNT',
+						description:
+							'Metric to sort the posts of the Content type by, as named in their metrics. Without it, posts are listed newest first.',
+					},
+					{
+						displayName: 'Sort Direction',
+						name: 'sortDir',
+						type: 'options',
+						options: [
+							{
+								name: 'Ascending',
+								value: 'asc',
+							},
+							{
+								name: 'Descending',
+								value: 'desc',
+							},
+						],
+						default: 'desc',
+						displayOptions: {
+							show: {
+								'/operation': ['getAccount'],
+							},
+						},
+						description: 'Direction to sort by Sort By',
+					},
+					{
+						displayName: 'Type',
+						name: 'type',
+						type: 'options',
+						options: [
+							{
+								name: 'Audience',
+								value: 'audience',
+							},
+							{
+								name: 'Competitors',
+								value: 'competitors',
+							},
+							{
+								name: 'Content',
+								value: 'content',
+							},
+							{
+								name: 'Engagement',
+								value: 'engagement',
+							},
+							{
+								name: 'Hashtags',
+								value: 'hashtags',
+							},
+							{
+								name: 'Insights',
+								value: 'insights',
+							},
+							{
+								name: 'Overview',
+								value: 'overview',
+							},
+							{
+								name: 'Reach',
+								value: 'reach',
+							},
+							{
+								name: 'Reviews',
+								value: 'reviews',
+							},
+							{
+								name: 'Search Terms',
+								value: 'search_terms',
+							},
+							{
+								name: 'Video',
+								value: 'video',
+							},
+						],
+						default: 'overview',
+						displayOptions: {
+							show: {
+								'/operation': ['getAccount'],
+							},
+						},
+						description:
+							"Analytics type to return. Each provider supports its own set, listed in the response's tabs field; an unsupported type returns an error.",
+					},
+				],
+			},
+			{
+				displayName: 'Options',
+				name: 'postingTimesOptions',
+				type: 'collection',
+				placeholder: 'Add Option',
+				default: {},
+				displayOptions: {
+					show: {
+						resource: ['analytics'],
+						operation: ['getPostingTimes', 'getBestTimes'],
+					},
+				},
+				options: [
+					{
+						displayName: 'Account UUIDs',
+						name: 'accounts',
+						type: 'string',
+						default: '',
+						description:
+							'Accounts to consider (comma-separated UUIDs). Defaults to every account in the workspace.',
+					},
+					{
+						displayName: 'From',
+						name: 'from',
+						type: 'dateTime',
+						default: '',
+						displayOptions: {
+							show: {
+								'/operation': ['getBestTimes'],
+							},
+						},
+						description:
+							'Day to look for the next best time from. Defaults to now; a past day counts as now.',
+					},
+					{
+						displayName: 'Timezone',
+						name: 'timezone',
+						type: 'string',
+						default: '',
+						placeholder: 'Europe/London',
+						description:
+							"IANA timezone to express days and hours in. Defaults to the timezone in the token owner's settings.",
+					},
+				],
+			},
 			// Media Fields
 			{
 				displayName: 'Media UUID',
@@ -290,7 +816,8 @@ export class Mixpost implements INodeType {
 						operation: ['delete'],
 					},
 				},
-				description: 'Comma-separated list of media IDs to delete',
+				description:
+					'Comma-separated list of media IDs or UUIDs to delete, up to 500 per request. The two may be mixed.',
 			},
 			{
 				displayName: 'File',
@@ -326,7 +853,155 @@ export class Mixpost implements INodeType {
 						default: '',
 						description: 'Alt text for the media file',
 					},
+					{
+						displayName: 'Folder UUID',
+						name: 'folder',
+						type: 'string',
+						default: '',
+						description:
+							'UUID of the folder to file the media into. Leave empty to move it back to the root. An unknown folder is rejected.',
+					},
+					{
+						displayName: 'Name',
+						name: 'name',
+						type: 'string',
+						default: '',
+						description: 'The name of the media file',
+					},
 				],
+			},
+			{
+				displayName: 'Additional Fields',
+				name: 'additionalFields',
+				type: 'collection',
+				placeholder: 'Add Field',
+				default: {},
+				displayOptions: {
+					show: {
+						resource: ['media'],
+						operation: ['upload'],
+					},
+				},
+				options: [
+					{
+						displayName: 'Alt Text',
+						name: 'alt_text',
+						type: 'string',
+						default: '',
+						description: 'Alt text for the media file',
+					},
+					{
+						displayName: 'Folder UUID',
+						name: 'folder',
+						type: 'string',
+						default: '',
+						description:
+							'UUID of the folder to file the upload into. Leave empty to file it at the root.',
+					},
+				],
+			},
+			// Media Folder Fields
+			{
+				displayName: 'Folder UUID',
+				name: 'folderUuid',
+				type: 'string',
+				default: '',
+				required: true,
+				displayOptions: {
+					show: {
+						resource: ['mediaFolder'],
+						operation: ['update', 'delete'],
+					},
+				},
+				description: 'The UUID of the media folder',
+			},
+			{
+				displayName: 'Name',
+				name: 'name',
+				type: 'string',
+				default: '',
+				required: true,
+				displayOptions: {
+					show: {
+						resource: ['mediaFolder'],
+						operation: ['create'],
+					},
+				},
+				description: 'The name of the folder. Must be unique among its siblings.',
+			},
+			{
+				displayName: 'Additional Fields',
+				name: 'additionalFields',
+				type: 'collection',
+				placeholder: 'Add Field',
+				default: {},
+				displayOptions: {
+					show: {
+						resource: ['mediaFolder'],
+						operation: ['create'],
+					},
+				},
+				options: [
+					{
+						displayName: 'Parent UUID',
+						name: 'parent',
+						type: 'string',
+						default: '',
+						description:
+							'UUID of the folder to create this one in. Leave empty to create a root folder. Folders nest at most five levels deep.',
+					},
+				],
+			},
+			{
+				displayName: 'Update Fields',
+				name: 'updateFields',
+				type: 'collection',
+				placeholder: 'Add Field',
+				default: {},
+				displayOptions: {
+					show: {
+						resource: ['mediaFolder'],
+						operation: ['update'],
+					},
+				},
+				options: [
+					{
+						displayName: 'Move to Root',
+						name: 'moveToRoot',
+						type: 'boolean',
+						default: false,
+						description: 'Whether to move the folder to the root, ignoring Parent UUID',
+					},
+					{
+						displayName: 'Name',
+						name: 'name',
+						type: 'string',
+						default: '',
+						description: 'The new name of the folder',
+					},
+					{
+						displayName: 'Parent UUID',
+						name: 'parent',
+						type: 'string',
+						default: '',
+						description:
+							'UUID of the folder to move this one under. A folder cannot be moved into itself or into anything below it.',
+					},
+				],
+			},
+			{
+				displayName: 'Delete Media',
+				name: 'deleteMedia',
+				type: 'boolean',
+				default: false,
+				displayOptions: {
+					show: {
+						resource: ['mediaFolder'],
+						operation: ['delete'],
+					},
+				},
+				description:
+					'Whether to delete the files filed at or below the folder too. When off, they move up to the deleted folder&apos;s parent.',
 			},
 			// Tag Fields
 			{
@@ -484,7 +1159,7 @@ export class Mixpost implements INodeType {
 				displayOptions: {
 					show: {
 						resource: ['post'],
-						operation: ['create'],
+						operation: ['create', 'update'],
 					},
 				},
 				description: 'Comma-separated list of account IDs to post to',
@@ -497,7 +1172,7 @@ export class Mixpost implements INodeType {
 				displayOptions: {
 					show: {
 						resource: ['post'],
-						operation: ['create'],
+						operation: ['create', 'update'],
 					},
 				},
 				description: 'Comma-separated list of tag IDs',
@@ -514,7 +1189,7 @@ export class Mixpost implements INodeType {
 				displayOptions: {
 					show: {
 						resource: ['post'],
-						operation: ['create'],
+						operation: ['create', 'update'],
 					},
 				},
 				description: 'Content versions for different accounts',
@@ -655,6 +1330,37 @@ export class Mixpost implements INodeType {
 				},
 				description: 'Whether to post immediately instead of at the scheduled date and time',
 			},
+			{
+				displayName: 'Date & Time',
+				name: 'date',
+				type: 'dateTime',
+				default: '',
+				displayOptions: {
+					show: {
+						resource: ['post'],
+						operation: ['schedule'],
+						postNow: [false],
+					},
+				},
+				description:
+					'A new date and time for the post. Leave empty to keep the time it already has.',
+			},
+			{
+				displayName: 'Timezone',
+				name: 'timezone',
+				type: 'string',
+				default: '',
+				placeholder: 'America/New_York',
+				displayOptions: {
+					show: {
+						resource: ['post'],
+						operation: ['schedule'],
+						postNow: [false],
+					},
+				},
+				description:
+					'Timezone of the date and time and the account times (defaults to user profile timezone)',
+			},
 			// Post Queue
 			{
 				displayName: 'Post UUID',
@@ -695,7 +1401,7 @@ export class Mixpost implements INodeType {
 				displayOptions: {
 					show: {
 						resource: ['post'],
-						operation: ['get', 'delete', 'update'],
+						operation: ['get', 'delete', 'update', 'retry'],
 					},
 				},
 				description: 'The UUID of the post',
@@ -804,55 +1510,102 @@ export class Mixpost implements INodeType {
 			},
 			// Post Update
 			{
-				displayName: 'Update Fields',
-				name: 'updateFields',
-				type: 'collection',
-				placeholder: 'Add Field',
-				default: {},
+				displayName:
+					'Update replaces the whole post: the accounts, tags and versions you leave out are removed from it. Read the post first with Get and send everything it should keep.',
+				name: 'updateNotice',
+				type: 'notice',
+				default: '',
 				displayOptions: {
 					show: {
 						resource: ['post'],
 						operation: ['update'],
 					},
 				},
+			},
+			{
+				displayName: 'Date & Time',
+				name: 'date',
+				type: 'dateTime',
+				default: '',
+				displayOptions: {
+					show: {
+						resource: ['post'],
+						operation: ['update'],
+					},
+				},
+				description:
+					"The post's date and time. Leave empty to clear it; a scheduled post without a date goes back to draft.",
+			},
+			{
+				displayName: 'Timezone',
+				name: 'timezone',
+				type: 'string',
+				default: '',
+				placeholder: 'America/New_York',
+				displayOptions: {
+					show: {
+						resource: ['post'],
+						operation: ['update'],
+					},
+				},
+				description: 'Timezone of the date and time (defaults to user profile timezone)',
+			},
+			// Post Retry
+			{
+				displayName: 'Account UUID',
+				name: 'accountUuid',
+				type: 'string',
+				default: '',
+				required: true,
+				displayOptions: {
+					show: {
+						resource: ['post'],
+						operation: ['retry'],
+					},
+				},
+				description: 'The UUID of the account the post failed to publish to',
+			},
+			// Post Account Schedule
+			{
+				displayName: 'Account Schedule',
+				name: 'accountsSchedule',
+				type: 'fixedCollection',
+				typeOptions: {
+					multipleValues: true,
+				},
+				default: {},
+				placeholder: 'Add Account Time',
+				displayOptions: {
+					show: {
+						resource: ['post'],
+						operation: ['schedule'],
+					},
+					hide: {
+						postNow: [true],
+					},
+				},
+				description:
+					"A date and time of its own for some of the post's accounts, in Timezone or the timezone of the token owner. Leave empty to move the accounts' own times along with the post.",
 				options: [
 					{
-						displayName: 'Account IDs',
-						name: 'accountIds',
-						type: 'string',
-						default: '',
-						description: 'Comma-separated list of account IDs',
-					},
-					{
-						displayName: 'Content',
-						name: 'content',
-						type: 'string',
-						typeOptions: {
-							rows: 5,
-						},
-						default: '',
-						description: 'The content of the post',
-					},
-					{
-						displayName: 'Media URLs',
-						name: 'media',
-						type: 'string',
-						default: '',
-						description: 'Comma-separated list of media URLs to attach',
-					},
-					{
-						displayName: 'Schedule Date',
-						name: 'scheduleAt',
-						type: 'dateTime',
-						default: '',
-						description: 'Date and time to schedule the post',
-					},
-					{
-						displayName: 'Tags',
-						name: 'tags',
-						type: 'string',
-						default: '',
-						description: 'Comma-separated list of tags',
+						name: 'departure',
+						displayName: 'Account Time',
+						values: [
+							{
+								displayName: 'Account ID',
+								name: 'accountId',
+								type: 'number',
+								default: 0,
+								description: 'The ID of one of the post accounts',
+							},
+							{
+								displayName: 'Date & Time',
+								name: 'dateTime',
+								type: 'dateTime',
+								default: '',
+								description: 'When the post goes out to this account',
+							},
+						],
 					},
 				],
 			},
@@ -966,6 +1719,124 @@ export class Mixpost implements INodeType {
 				default: 50,
 				description: 'Max number of results to return',
 			},
+			{
+				displayName: 'Filters',
+				name: 'filters',
+				type: 'collection',
+				placeholder: 'Add Filter',
+				default: {},
+				displayOptions: {
+					show: {
+						resource: ['media'],
+						operation: ['getAll'],
+					},
+				},
+				options: [
+					{
+						displayName: 'Favorite',
+						name: 'favorite',
+						type: 'boolean',
+						default: false,
+						description:
+							'Whether to return only the files the token&apos;s user has starred. Ignored while Keyword is set.',
+					},
+					{
+						displayName: 'Folder',
+						name: 'folder',
+						type: 'string',
+						default: '',
+						description:
+							'A folder UUID, or "root" for the files filed in no folder. Leave empty to list the whole library. Ignored while Keyword is set.',
+					},
+					{
+						displayName: 'Keyword',
+						name: 'keyword',
+						type: 'string',
+						default: '',
+						description:
+							'Return files whose name contains this text. A search reaches the whole library, so it overrides Folder and Favorite.',
+					},
+					{
+						displayName: 'MIME Types',
+						name: 'mime_types',
+						type: 'string',
+						default: '',
+						description: 'Return only these exact MIME types (comma-separated list)',
+					},
+					{
+						displayName: 'Sort',
+						name: 'sort',
+						type: 'options',
+						options: [
+							{
+								name: 'Name',
+								value: 'name',
+							},
+							{
+								name: 'Newest',
+								value: 'newest',
+							},
+							{
+								name: 'Oldest',
+								value: 'oldest',
+							},
+							{
+								name: 'Size',
+								value: 'size',
+							},
+						],
+						default: 'newest',
+						description: 'Order of the listing',
+					},
+					{
+						displayName: 'Type',
+						name: 'type',
+						type: 'options',
+						options: [
+							{
+								name: 'GIF',
+								value: 'gif',
+							},
+							{
+								name: 'Image',
+								value: 'image',
+							},
+							{
+								name: 'Video',
+								value: 'video',
+							},
+						],
+						default: 'image',
+						description: 'Return only files of this kind',
+					},
+					{
+						displayName: 'Usage',
+						name: 'usage',
+						type: 'options',
+						options: [
+							{
+								name: 'Draft',
+								value: 'draft',
+							},
+							{
+								name: 'Published',
+								value: 'published',
+							},
+							{
+								name: 'Scheduled',
+								value: 'scheduled',
+							},
+							{
+								name: 'Unused',
+								value: 'unused',
+							},
+						],
+						default: 'unused',
+						description:
+							'Return only files used this way. A file sits in the strongest bucket it qualifies for.',
+					},
+				],
+			},
 			// Media/Tag Get All
 			// {
 			// 	displayName: 'Return All',
@@ -1031,6 +1902,39 @@ export class Mixpost implements INodeType {
 		],
 	};
 
+	methods = {
+		listSearch: {
+			async searchWorkspaces(
+				this: ILoadOptionsFunctions,
+				filter?: string,
+			): Promise<INodeListSearchResult> {
+				const credentials = await this.getCredentials('mixpostApi');
+				const baseUrl = (credentials.url as string).replace(/\/$/, '');
+
+				const response = await this.helpers.httpRequest({
+					method: 'GET',
+					url: `${baseUrl}/api/workspaces`,
+					headers: {
+						Accept: 'application/json',
+						Authorization: `Bearer ${credentials.accessToken as string}`,
+					},
+				});
+
+				const workspaces = ((response?.data as IDataObject[]) || []).filter(
+					(workspace) =>
+						!filter || (workspace.name as string).toLowerCase().includes(filter.toLowerCase()),
+				);
+
+				return {
+					results: workspaces.map((workspace) => ({
+						name: workspace.name as string,
+						value: workspace.uuid as string,
+					})),
+				};
+			},
+		},
+	};
+
 	async execute(this: IExecuteFunctions): Promise<INodeExecutionData[][]> {
 		const items = this.getInputData();
 		const returnData: IDataObject[] = [];
@@ -1050,9 +1954,15 @@ export class Mixpost implements INodeType {
 				let body: any = {};
 				let qs: IDataObject = {};
 
-				const workspaceUuid = this.getNodeParameter('workspaceUuid', i) as string;
+				const workspaceUuid =
+					resource === 'workspace'
+						? ''
+						: (this.getNodeParameter('workspaceUuid', i, '', { extractValue: true }) as string);
 
-				if (resource === 'account') {
+				if (resource === 'workspace') {
+					requestMethod = 'GET';
+					endpoint = '/api/workspaces';
+				} else if (resource === 'account') {
 					if (operation === 'get') {
 						requestMethod = 'GET';
 						const accountUuid = this.getNodeParameter('accountUuid', i) as string;
@@ -1061,12 +1971,97 @@ export class Mixpost implements INodeType {
 						requestMethod = 'GET';
 						endpoint = `/api/${workspaceUuid}/accounts`;
 					}
+				} else if (resource === 'analytics') {
+					requestMethod = 'GET';
+
+					if (operation === 'getSummary' || operation === 'getAccount') {
+						const options = this.getNodeParameter('analyticsOptions', i, {}) as IDataObject;
+
+						if (options.period) {
+							qs.period = options.period;
+						}
+						if (options.dateFrom) {
+							qs.date_from = (options.dateFrom as string).slice(0, 10);
+						}
+						if (options.dateTo) {
+							qs.date_to = (options.dateTo as string).slice(0, 10);
+						}
+
+						if (operation === 'getSummary') {
+							endpoint = `/api/${workspaceUuid}/analytics`;
+						} else {
+							const accountUuid = this.getNodeParameter('accountUuid', i) as string;
+							endpoint = `/api/${workspaceUuid}/analytics/accounts/${accountUuid}`;
+
+							if (options.type) {
+								qs.type = options.type;
+							}
+							if (options.page) {
+								qs.page = options.page;
+							}
+							if (options.perPage) {
+								qs.per_page = options.perPage;
+							}
+							if (options.sortBy) {
+								qs.sort_by = options.sortBy;
+							}
+							if (options.sortDir) {
+								qs.sort_dir = options.sortDir;
+							}
+						}
+					} else if (operation === 'getPost') {
+						const postUuid = this.getNodeParameter('postUuid', i) as string;
+						endpoint = `/api/${workspaceUuid}/posts/${postUuid}/analytics`;
+					} else if (operation === 'getPostingTimes' || operation === 'getBestTimes') {
+						const options = this.getNodeParameter('postingTimesOptions', i, {}) as IDataObject;
+
+						endpoint =
+							operation === 'getPostingTimes'
+								? `/api/${workspaceUuid}/analytics/posting-times`
+								: `/api/${workspaceUuid}/analytics/best-times`;
+
+						if (options.accounts) {
+							const accountUuids = (options.accounts as string)
+								.split(',')
+								.map((uuid) => uuid.trim())
+								.filter((uuid) => uuid);
+							if (accountUuids.length > 0) {
+								qs.accounts = accountUuids;
+							}
+						}
+						if (options.timezone) {
+							qs.timezone = options.timezone;
+						}
+						if (operation === 'getBestTimes' && options.from) {
+							qs.from = (options.from as string).slice(0, 10);
+						}
+					}
 				} else if (resource === 'media') {
 					if (operation === 'getAll') {
 						requestMethod = 'GET';
 						endpoint = `/api/${workspaceUuid}/media`;
 
 						qs.limit = this.getNodeParameter('limit', i) as number;
+
+						const filters = this.getNodeParameter('filters', i) as IDataObject;
+
+						for (const key of ['folder', 'type', 'keyword', 'usage', 'sort'] as const) {
+							if (filters[key]) {
+								qs[key] = filters[key];
+							}
+						}
+						if (filters.favorite) {
+							qs.favorite = 1;
+						}
+						if (filters.mime_types) {
+							const mimeTypes = (filters.mime_types as string)
+								.split(',')
+								.map((mimeType) => mimeType.trim())
+								.filter((mimeType) => mimeType);
+							if (mimeTypes.length > 0) {
+								qs.mime_types = mimeTypes;
+							}
+						}
 					} else if (operation === 'get') {
 						requestMethod = 'GET';
 						const mediaUuid = this.getNodeParameter('mediaUuid', i) as string;
@@ -1097,6 +2092,14 @@ export class Mixpost implements INodeType {
 						const formData = new FormData();
 						formData.append('file', blob, dataBinary.data.fileName);
 
+						const additionalFields = this.getNodeParameter('additionalFields', i) as IDataObject;
+						if (additionalFields.alt_text) {
+							formData.append('alt_text', additionalFields.alt_text as string);
+						}
+						if (additionalFields.folder) {
+							formData.append('folder', additionalFields.folder as string);
+						}
+
 						// Set form data instead of JSON body
 						body = formData;
 					} else if (operation === 'update') {
@@ -1108,6 +2111,13 @@ export class Mixpost implements INodeType {
 						if (updateFields.alt_text) {
 							body.alt_text = updateFields.alt_text;
 						}
+						if (updateFields.name) {
+							body.name = updateFields.name;
+						}
+						// Naming the key is what asks for the move, so an empty folder files at the root.
+						if (updateFields.folder !== undefined) {
+							body.folder = updateFields.folder || null;
+						}
 					} else if (operation === 'delete') {
 						requestMethod = 'DELETE';
 						endpoint = `/api/${workspaceUuid}/media`;
@@ -1117,6 +2127,43 @@ export class Mixpost implements INodeType {
 							.map((id) => id.trim())
 							.filter((id) => id);
 						body.items = mediaIds;
+					}
+				} else if (resource === 'mediaFolder') {
+					if (operation === 'getAll') {
+						requestMethod = 'GET';
+						endpoint = `/api/${workspaceUuid}/media/folders`;
+					} else if (operation === 'create') {
+						requestMethod = 'POST';
+						endpoint = `/api/${workspaceUuid}/media/folders`;
+
+						body.name = this.getNodeParameter('name', i) as string;
+
+						const additionalFields = this.getNodeParameter('additionalFields', i) as IDataObject;
+						if (additionalFields.parent) {
+							body.parent = additionalFields.parent;
+						}
+					} else if (operation === 'update') {
+						requestMethod = 'PUT';
+						const folderUuid = this.getNodeParameter('folderUuid', i) as string;
+						endpoint = `/api/${workspaceUuid}/media/folders/${folderUuid}`;
+
+						const updateFields = this.getNodeParameter('updateFields', i) as IDataObject;
+						if (updateFields.name) {
+							body.name = updateFields.name;
+						}
+						// Sending the key is what asks for the move, and only an explicit request
+						// moves a folder to the root — an empty Parent UUID means "leave it where it is".
+						if (updateFields.moveToRoot) {
+							body.parent = null;
+						} else if (updateFields.parent) {
+							body.parent = updateFields.parent;
+						}
+					} else if (operation === 'delete') {
+						requestMethod = 'DELETE';
+						const folderUuid = this.getNodeParameter('folderUuid', i) as string;
+						endpoint = `/api/${workspaceUuid}/media/folders/${folderUuid}`;
+
+						body.delete_media = this.getNodeParameter('deleteMedia', i) as boolean;
 					}
 				} else if (resource === 'tag') {
 					if (operation === 'getAll') {
@@ -1166,19 +2213,9 @@ export class Mixpost implements INodeType {
 						let timeStr = '';
 
 						if (postType === 'schedule') {
-							// Parse date and time from the datetime input
-							const dateTimeInput = this.getNodeParameter('date', i) as string;
-							const dateObj = new Date(dateTimeInput);
-
-							// Format date as Y-m-d and time as H:i
-							const year = dateObj.getFullYear();
-							const month = String(dateObj.getMonth() + 1).padStart(2, '0');
-							const day = String(dateObj.getDate()).padStart(2, '0');
-							const hours = String(dateObj.getHours()).padStart(2, '0');
-							const minutes = String(dateObj.getMinutes()).padStart(2, '0');
-
-							dateStr = `${year}-${month}-${day}`;
-							timeStr = `${hours}:${minutes}`;
+							const scheduledAt = toDateAndTime(this.getNodeParameter('date', i) as string);
+							dateStr = scheduledAt.date;
+							timeStr = scheduledAt.time;
 							body.schedule = true;
 
 							if (dateStr && timeStr) {
@@ -1216,114 +2253,17 @@ export class Mixpost implements INodeType {
 							body.time = timeStr;
 						}
 
-						// Get versions from fixed collection
 						const versionsData = this.getNodeParameter('versions', i) as IDataObject;
-						const versionItems = (versionsData.version as IDataObject[]) || [];
+						body.versions = buildVersions((versionsData.version as IDataObject[]) || []);
 
-						// Build versions array
-						body.versions = versionItems.map((versionItem, index) => {
-							const version: any = {
-								// Apply defaults for first version only
-								account_id:
-									versionItem.account_id !== undefined
-										? versionItem.account_id
-										: index === 0
-										? 0
-										: null,
-								is_original:
-									versionItem.is_original !== undefined
-										? versionItem.is_original
-										: index === 0
-										? true
-										: false,
-								content: [],
-							};
-
-							// Handle content as fixedCollection
-							const contentData = (versionItem.content as IDataObject) || {};
-							const contentItems = (contentData.contentItem as IDataObject[]) || [];
-
-							// Process each content item
-							version.content = contentItems.map((item) => {
-								const contentItem: any = {};
-
-								if (item.body !== undefined && item.body !== '') {
-									contentItem.body = item.body;
-								}
-
-								if (item.url !== undefined && item.url !== '') {
-									contentItem.url = item.url;
-								}
-
-								// Handle media IDs - convert comma-separated string to array of numbers
-								if (item.media !== undefined && item.media !== '') {
-									contentItem.media = (item.media as string)
-										.split(',')
-										.map((id) => parseInt(id.trim()))
-										.filter((id) => !isNaN(id));
-								} else {
-									contentItem.media = [];
-								}
-
-								return contentItem;
-							});
-
-							// If no content items provided, add an empty content array
-							if (version.content.length === 0) {
-								version.content = [{ body: '', media: [] }];
-							}
-
-							// Handle provider options
-							const optionsData = (versionItem.options as IDataObject) || {};
-							const optionItems = (optionsData.option as IDataObject[]) || [];
-
-							if (optionItems.length > 0) {
-								version.options = {};
-
-								// Group options by provider and key
-								optionItems.forEach((optionItem) => {
-									const provider = optionItem.provider as string;
-									const key = optionItem.key as string;
-									let value = optionItem.value as string;
-
-									if (provider && key) {
-										if (!version.options[provider]) {
-											version.options[provider] = {};
-										}
-
-										// Try to parse value as boolean or number
-										if (value === 'true') {
-											version.options[provider][key] = true;
-										} else if (value === 'false') {
-											version.options[provider][key] = false;
-										} else if (!isNaN(Number(value))) {
-											version.options[provider][key] = Number(value);
-										} else {
-											version.options[provider][key] = value;
-										}
-									}
-								});
-							}
-
-							return version;
-						});
-
-						// Handle accounts array from main field
 						const accountIds = this.getNodeParameter('accountIds', i) as string;
 						if (accountIds) {
-							body.accounts = accountIds
-								.split(',')
-								.map((id) => parseInt(id.trim()))
-								.filter((id) => !isNaN(id));
+							body.accounts = toIds(accountIds);
 						}
 
-						// Handle tags array from main field
 						const tagIds = this.getNodeParameter('tagIds', i, '') as string;
 						if (tagIds) {
-							body.tags = tagIds
-								.split(',')
-								.map((id) => parseInt(id.trim()))
-								.filter((id) => !isNaN(id));
+							body.tags = toIds(tagIds);
 						}
 					} else if (operation === 'get') {
 						requestMethod = 'GET';
@@ -1371,23 +2311,19 @@ export class Mixpost implements INodeType {
 						const postUuid = this.getNodeParameter('postUuid', i) as string;
 						endpoint = `/api/${workspaceUuid}/posts/${postUuid}`;
 
-						const updateFields = this.getNodeParameter('updateFields', i) as IDataObject;
-						if (updateFields.content) {
-							body.content = updateFields.content;
+						const versionsData = this.getNodeParameter('versions', i) as IDataObject;
+						body.versions = buildVersions((versionsData.version as IDataObject[]) || []);
+						body.accounts = toIds(this.getNodeParameter('accountIds', i) as string);
+						body.tags = toIds(this.getNodeParameter('tagIds', i, '') as string);
+
+						const scheduledAt = this.getNodeParameter('date', i, '') as string;
+						if (scheduledAt) {
+							Object.assign(body, toDateAndTime(scheduledAt));
 						}
-						if (updateFields.scheduleAt) {
-							body.schedule_at = updateFields.scheduleAt;
-						}
-						if (updateFields.media) {
-							body.media = (updateFields.media as string).split(',').map((url) => url.trim());
-						}
-						if (updateFields.tags) {
-							body.tags = (updateFields.tags as string).split(',').map((tag) => tag.trim());
-						}
-						if (updateFields.accountIds) {
-							body.account_ids = (updateFields.accountIds as string)
-								.split(',')
-								.map((id) => id.trim());
+
+						const timezone = this.getNodeParameter('timezone', i, '') as string;
+						if (timezone) {
+							body.timezone = timezone;
 						}
 					} else if (operation === 'delete') {
 						requestMethod = 'DELETE';
@@ -1424,10 +2360,26 @@ export class Mixpost implements INodeType {
 						const postUuid = this.getNodeParameter('postUuid', i) as string;
 						endpoint = `/api/${workspaceUuid}/posts/schedule/${postUuid}`;
 
-						// Handle post now option
 						const postNow = this.getNodeParameter('postNow', i, false) as boolean;
-						if (postNow) {
-							body.postNow = true;
+						body.postNow = postNow;
+
+						if (!postNow) {
+							const timezone = this.getNodeParameter('timezone', i, '') as string;
+							if (timezone) {
+								body.timezone = timezone;
+							}
+
+							const scheduledAt = this.getNodeParameter('date', i, '') as string;
+							if (scheduledAt) {
+								Object.assign(body, toDateAndTime(scheduledAt));
+							}
+
+							const accountsSchedule = buildAccountsSchedule(
+								this.getNodeParameter('accountsSchedule', i, {}) as IDataObject,
+							);
+							if (accountsSchedule.length > 0) {
+								body.accounts_schedule = accountsSchedule;
+							}
 						}
 					} else if (operation === 'queue') {
 						requestMethod = 'POST';
@@ -1437,6 +2389,11 @@ export class Mixpost implements INodeType {
 						requestMethod = 'POST';
 						const postUuid = this.getNodeParameter('postUuid', i) as string;
 						endpoint = `/api/${workspaceUuid}/posts/approve/${postUuid}`;
+					} else if (operation === 'retry') {
+						requestMethod = 'POST';
+						const postUuid = this.getNodeParameter('postUuid', i) as string;
+						const accountUuid = this.getNodeParameter('accountUuid', i) as string;
+						endpoint = `/api/${workspaceUuid}/posts/retry/${postUuid}/${accountUuid}`;
 					}
 				}
 

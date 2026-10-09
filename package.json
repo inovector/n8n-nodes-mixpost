@@ -1,6 +1,6 @@
 {
   "name": "n8n-nodes-mixpost",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "This is an n8n community node. It lets you use Mixpost in your n8n workflows.",
   "keywords": [
     "social media",

@@ -526,6 +526,52 @@ export class Mixpost implements INodeType {
 				},
 				description: 'The UUID of the account',
 			},
+			{
+				displayName: 'Filters',
+				name: 'accountFilters',
+				type: 'collection',
+				placeholder: 'Add Filter',
+				default: {},
+				displayOptions: {
+					show: {
+						resource: ['account'],
+						operation: ['getAll'],
+					},
+				},
+				options: [
+					{
+						displayName: 'Group',
+						name: 'group',
+						type: 'string',
+						default: '',
+						description:
+							'UUID of an account group to list only its accounts, or "ungrouped" for the accounts in no group',
+					},
+					{
+						displayName: 'Keyword',
+						name: 'keyword',
+						type: 'string',
+						default: '',
+						description:
+							'Match the account name, username or platform (for example "bluesky" or "x")',
+					},
+					{
+						displayName: 'Needs Re-Authentication',
+						name: 'unauthorized',
+						type: 'boolean',
+						default: false,
+						description: 'Whether to list only the accounts whose connection was lost',
+					},
+					{
+						displayName: 'Platforms',
+						name: 'providers',
+						type: 'string',
+						default: '',
+						description:
+							'Provider keys to list only accounts on those platforms (comma-separated list, for example "instagram, linkedin")',
+					},
+				],
+			},
 			// Analytics Fields
 			{
 				displayName: 'Account UUID',
@@ -1970,6 +2016,28 @@ export class Mixpost implements INodeType {
 					} else if (operation === 'getAll') {
 						requestMethod = 'GET';
 						endpoint = `/api/${workspaceUuid}/accounts`;
+
+						const filters = this.getNodeParameter('accountFilters', i, {}) as IDataObject;
+
+						if (filters.keyword) {
+							qs.keyword = filters.keyword;
+						}
+						if (filters.group) {
+							qs.group = filters.group;
+						}
+						if (filters.providers) {
+							// Convert comma-separated string to array
+							const providers = (filters.providers as string)
+								.split(',')
+								.map((provider) => provider.trim())
+								.filter((provider) => provider);
+							if (providers.length > 0) {
+								qs.providers = providers;
+							}
+						}
+						if (filters.unauthorized) {
+							qs.unauthorized = 1;
+						}
 					}
 				} else if (resource === 'analytics') {
 					requestMethod = 'GET';

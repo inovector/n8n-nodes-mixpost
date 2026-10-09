@@ -84,7 +84,7 @@ Restart n8n to load the new node.
 | Operation | Description |
 |-----------|-------------|
 | **Get** | Retrieve details of a specific social media account |
-| **Get Many** | List all connected social media accounts in your workspace |
+| **Get Many** | List the connected social media accounts in your workspace, filtered by keyword, platform, group or lost connection |
 
 ### 📈 Analytics
 | Operation | Description |

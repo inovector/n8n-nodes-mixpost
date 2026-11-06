@@ -114,6 +114,28 @@ Analytics periods and dates are UTC days, and a custom range may span at most 36
 | **Update** | Rename a folder or move it under another |
 | **Delete** | Delete a folder, keeping or deleting the files inside it |
 
+### @ Mentions
+| Operation | Description |
+|-----------|-------------|
+| **Get** | Retrieve a specific mention by UUID |
+| **Get Many** | Find the people and pages saved in your workspace, by the start of a name or handle |
+
+To mention someone in a post, take the `reference` from **Mention → Get Many** and write `{{mention:<reference>}}` in the post's **Body**:
+
+```
+Thanks {{mention:42}} for the support!
+```
+
+If **Body** is in Expression mode, write the token as a string so n8n does not read it as an expression:
+
+```
+{{ "Thanks {{mention:" + $json.reference + "}} for the support!" }}
+```
+
+Each identity carries a `status`: `verified` is a real mention of a confirmed profile, `unverified` is a typed handle that works if it is correct, and `text_only` publishes only the name. A network with no identity also gets only the name.
+
+Mentions are added from the post editor in Mixpost.
+
 ### 🏷️ Tags
 | Operation | Description |
 |-----------|-------------|
@@ -171,6 +193,8 @@ Mixpost supports posting to:
 ### Pagination
 When using "Get Many" operation for **post** or **media** resource, you can control pagination:
 - **Per Page Limit**: Set how many results to return per page (default is 50, max is 100)
+
+**Mention → Get Many** has its own **Per Page Limit** (default is 50, max is 100) and a **Page** filter for moving through the results.
 
 
 ### Filtering

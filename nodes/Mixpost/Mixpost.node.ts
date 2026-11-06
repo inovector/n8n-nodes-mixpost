@@ -159,6 +159,10 @@ export class Mixpost implements INodeType {
 						value: 'mediaFolder',
 					},
 					{
+						name: 'Mention',
+						value: 'mention',
+					},
+					{
 						name: 'Post',
 						value: 'post',
 					},
@@ -465,6 +469,33 @@ export class Mixpost implements INodeType {
 					},
 				],
 				default: 'create',
+			},
+			// Mention Operations
+			{
+				displayName: 'Operation',
+				name: 'operation',
+				type: 'options',
+				noDataExpression: true,
+				displayOptions: {
+					show: {
+						resource: ['mention'],
+					},
+				},
+				options: [
+					{
+						name: 'Get',
+						value: 'get',
+						description: 'Get a mention',
+						action: 'Get a mention',
+					},
+					{
+						name: 'Get Many',
+						value: 'getAll',
+						description: 'Get many mentions',
+						action: 'Get many mentions',
+					},
+				],
+				default: 'getAll',
 			},
 			// Tag Operations
 			{
@@ -1282,7 +1313,8 @@ export class Mixpost implements INodeType {
 													rows: 5,
 												},
 												default: '',
-												description: 'The text content of the post',
+												description:
+													'The text content of the post. To mention someone, write {{mention:reference}} with the reference from Mention → Get Many. In Expression mode, write it as a quoted string; the README has an example.',
 											},
 											{
 												displayName: 'Media IDs',
@@ -1652,6 +1684,67 @@ export class Mixpost implements INodeType {
 								description: 'When the post goes out to this account',
 							},
 						],
+					},
+				],
+			},
+			// Mention Get
+			{
+				displayName: 'Mention UUID',
+				name: 'mentionUuid',
+				type: 'string',
+				default: '',
+				required: true,
+				displayOptions: {
+					show: {
+						resource: ['mention'],
+						operation: ['get'],
+					},
+				},
+				description: 'The UUID of the mention',
+			},
+			// Mention Get All
+			{
+				displayName: 'Per Page Limit',
+				name: 'mentionLimit',
+				type: 'number',
+				displayOptions: {
+					show: {
+						resource: ['mention'],
+						operation: ['getAll'],
+					},
+				},
+				typeOptions: {
+					minValue: 1,
+				},
+				default: 50,
+				description: 'Max number of results to return',
+			},
+			{
+				displayName: 'Filters',
+				name: 'mentionFilters',
+				type: 'collection',
+				placeholder: 'Add Filter',
+				default: {},
+				displayOptions: {
+					show: {
+						resource: ['mention'],
+						operation: ['getAll'],
+					},
+				},
+				options: [
+					{
+						displayName: 'Keyword',
+						name: 'keyword',
+						type: 'string',
+						default: '',
+						description: 'Find mentions whose name or handle starts with this text',
+					},
+					{
+						displayName: 'Page',
+						name: 'page',
+						type: 'number',
+						default: 1,
+						description: 'Page number for pagination',
 					},
 				],
 			},
@@ -2233,6 +2326,25 @@ export class Mixpost implements INodeType {
 
 						body.delete_media = this.getNodeParameter('deleteMedia', i) as boolean;
 					}
+				} else if (resource === 'mention') {
+					requestMethod = 'GET';
+
+					if (operation === 'get') {
+						const mentionUuid = this.getNodeParameter('mentionUuid', i) as string;
+						endpoint = `/api/${workspaceUuid}/mentions/${mentionUuid}`;
+					} else if (operation === 'getAll') {
+						endpoint = `/api/${workspaceUuid}/mentions`;
+						qs.per_page = this.getNodeParameter('mentionLimit', i) as number;
+
+						const filters = this.getNodeParameter('mentionFilters', i, {}) as IDataObject;
+
+						if (filters.keyword) {
+							qs.q = filters.keyword;
+						}
+						if (filters.page) {
+							qs.page = filters.page;
+						}
+					}
 				} else if (resource === 'tag') {
 					if (operation === 'getAll') {
 						requestMethod = 'GET';
@@ -2490,6 +2602,11 @@ export class Mixpost implements INodeType {
 				}
 
 				responseData = await this.helpers.httpRequest(requestOptions);
+
+				// A single mention comes wrapped in `data`.
+				if (resource === 'mention' && operation === 'get') {
+					responseData = responseData.data;
+				}
 
 				if (Array.isArray(responseData)) {
 					returnData.push(...responseData);

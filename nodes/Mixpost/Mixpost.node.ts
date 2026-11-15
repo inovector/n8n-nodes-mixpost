@@ -1,4 +1,5 @@
 import {
+	ApplicationError,
 	IExecuteFunctions,
 	ILoadOptionsFunctions,
 	INodeListSearchResult,
@@ -15,6 +16,56 @@ function toIds(value: string): number[] {
 		.split(',')
 		.map((id) => parseInt(id.trim()))
 		.filter((id) => !isNaN(id));
+}
+
+// Reads "videoId=value" pairs separated by commas, e.g. "4=9, 5=12".
+function toVideoPairs(value: string, field: string): Array<[number, number]> {
+	return value
+		.split(',')
+		.map((pair) => pair.trim())
+		.filter((pair) => pair !== '')
+		.map((pair) => {
+			const [video, target] = pair.split('=').map((part) => part.trim());
+			const videoId = Number(video);
+			const number = Number(target);
+
+			if (!Number.isInteger(videoId) || !Number.isInteger(number) || number < 0) {
+				throw new ApplicationError(`${field} expects video_id=number pairs, got "${pair}"`);
+			}
+
+			return [videoId, number];
+		});
+}
+
+// One cover per video of the content item: an image (thumb_id), a moment of the
+// video in milliseconds (timestamp_ms), or both. TikTok takes only the moment;
+// the other networks that publish a cover take only the image.
+function toVideoThumbs(images: string, times: string, media: number[]): IDataObject[] {
+	const covers = new Map<number, IDataObject>();
+
+	const coverOf = (videoId: number, field: string): IDataObject => {
+		if (!media.includes(videoId)) {
+			throw new ApplicationError(
+				`${field}: video ${videoId} is not in the Media IDs of the same content item`,
+			);
+		}
+
+		if (!covers.has(videoId)) {
+			covers.set(videoId, { media_id: videoId });
+		}
+
+		return covers.get(videoId) as IDataObject;
+	};
+
+	for (const [videoId, imageId] of toVideoPairs(images, 'Video Thumbnails')) {
+		coverOf(videoId, 'Video Thumbnails').thumb_id = imageId;
+	}
+
+	for (const [videoId, milliseconds] of toVideoPairs(times, 'Video Thumbnail Times')) {
+		coverOf(videoId, 'Video Thumbnail Times').timestamp_ms = milliseconds;
+	}
+
+	return [...covers.values()];
 }
 
 function toDateAndTime(value: string): { date: string; time: string } {
@@ -71,6 +122,16 @@ function buildVersions(versionItems: IDataObject[]): IDataObject[] {
 
 			contentItem.media =
 				item.media !== undefined && item.media !== '' ? toIds(item.media as string) : [];
+
+			const videoThumbs = toVideoThumbs(
+				(item.videoThumbnails as string) || '',
+				(item.videoThumbnailTimes as string) || '',
+				contentItem.media,
+			);
+
+			if (videoThumbs.length) {
+				contentItem.video_thumbs = videoThumbs;
+			}
 
 			return contentItem;
 		});
@@ -1329,6 +1390,24 @@ export class Mixpost implements INodeType {
 												type: 'string',
 												default: '',
 												description: 'URL to include in the post',
+											},
+											{
+												displayName: 'Video Thumbnail Times',
+												name: 'videoThumbnailTimes',
+												type: 'string',
+												default: '',
+												placeholder: '4=2500',
+												description:
+													'Covers given as a moment of the video, as video_id=milliseconds pairs separated by commas. TikTok takes only this; give both fields to cover every network.',
+											},
+											{
+												displayName: 'Video Thumbnails',
+												name: 'videoThumbnails',
+												type: 'string',
+												default: '',
+												placeholder: '4=9',
+												description:
+													'Cover images of the videos in Media IDs, as video_id=image_id pairs separated by commas. Used by YouTube, Pinterest, LinkedIn, Mastodon, and Instagram and Facebook Page reels.',
 											},
 										],
 									},

@@ -75,6 +75,13 @@ Restart n8n to load the new node.
 | **Approve** | Approve a post for publishing |
 | **Retry Account** | Publish a post again to an account where it failed |
 
+A video in a content item can get a cover, given in two ways that can be combined:
+
+- **Video Thumbnails** — an image from the media library, as `video_id=image_id` pairs, e.g. `4=9`. YouTube, Pinterest, LinkedIn, Mastodon, and Instagram and Facebook Page reels publish it.
+- **Video Thumbnail Times** — a moment of the video in milliseconds, as `video_id=milliseconds` pairs, e.g. `4=2500`. TikTok takes only this.
+
+Give both to cover every network. The video must be in the same content item's **Media IDs**. Since **Update** replaces the whole post, send the covers again to keep them.
+
 ### 🏢 Workspaces
 | Operation | Description |
 |-----------|-------------|

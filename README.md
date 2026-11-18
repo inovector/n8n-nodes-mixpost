@@ -82,6 +82,13 @@ A video in a content item can get a cover, given in two ways that can be combine
 
 Give both to cover every network. The video must be in the same content item's **Media IDs**. Since **Update** replaces the whole post, send the covers again to keep them.
 
+A version's **Options** set what each network does with the post, one **Provider**, **Key** and **Value** per row, e.g. `instagram`, `type`, `reel`. A value is text, a number, `true` or `false`, or JSON for a list or an object:
+
+| Provider | Key | Value |
+|----------|-----|-------|
+| `instagram` | `collaborators` | `["ana.maria", "bob"]` — up to 3 usernames, invited on a post, carousel or reel, never on a story |
+| `tiktok` | `privacy_level` | `{"account-12": "PUBLIC_TO_EVERYONE"}` — per TikTok account id |
+
 ### 🏢 Workspaces
 | Operation | Description |
 |-----------|-------------|

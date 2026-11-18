@@ -91,6 +91,29 @@ function buildAccountsSchedule(data: IDataObject): IDataObject[] {
 		}));
 }
 
+// A list or an object is written as JSON, e.g. ["ana.maria", "bob"] for Instagram collaborators.
+function parseOptionValue(value: string): unknown {
+	const trimmed = (value ?? '').trim();
+
+	if (trimmed === '') {
+		return value;
+	}
+
+	if (trimmed === 'true' || trimmed === 'false') {
+		return trimmed === 'true';
+	}
+
+	if (trimmed.startsWith('[') || trimmed.startsWith('{')) {
+		try {
+			return JSON.parse(trimmed);
+		} catch {
+			return value;
+		}
+	}
+
+	return isNaN(Number(trimmed)) ? value : Number(trimmed);
+}
+
 function buildVersions(versionItems: IDataObject[]): IDataObject[] {
 	return versionItems.map((versionItem, index) => {
 		const version: any = {
@@ -159,16 +182,7 @@ function buildVersions(versionItems: IDataObject[]): IDataObject[] {
 					version.options[provider] = {};
 				}
 
-				// Try to parse value as boolean or number
-				if (value === 'true') {
-					version.options[provider][key] = true;
-				} else if (value === 'false') {
-					version.options[provider][key] = false;
-				} else if (!isNaN(Number(value))) {
-					version.options[provider][key] = Number(value);
-				} else {
-					version.options[provider][key] = value;
-				}
+				version.options[provider][key] = parseOptionValue(value);
 			});
 		}
 
@@ -1449,7 +1463,9 @@ export class Mixpost implements INodeType {
 												name: 'value',
 												type: 'string',
 												default: '',
-												description: 'Option value (string, number, or boolean)',
+												placeholder: '["ana.maria", "bob"]',
+												description:
+													'Option value: text, a number, true or false, or JSON for a list or an object (e.g. ["ana.maria", "bob"] for Instagram collaborators)',
 											},
 										],
 									},

@@ -333,10 +333,23 @@ export class Mixpost implements INodeType {
 						action: 'Get an account',
 					},
 					{
+						name: 'Get Actions',
+						value: 'getActions',
+						description:
+							"List what only the account's platform does, such as creating a Pinterest board, with the input each action takes",
+						action: 'Get account actions',
+					},
+					{
 						name: 'Get Many',
 						value: 'getAll',
 						description: 'Get many social accounts',
 						action: 'Get many accounts',
+					},
+					{
+						name: 'Run Action',
+						value: 'runAction',
+						description: "Run one of the account's actions on its platform",
+						action: 'Run an account action',
 					},
 				],
 				default: 'getAll',
@@ -627,10 +640,39 @@ export class Mixpost implements INodeType {
 				displayOptions: {
 					show: {
 						resource: ['account'],
-						operation: ['get'],
+						operation: ['get', 'getActions', 'runAction'],
 					},
 				},
 				description: 'The UUID of the account',
+			},
+			{
+				displayName: 'Action',
+				name: 'actionName',
+				type: 'string',
+				default: '',
+				required: true,
+				placeholder: 'create-board',
+				displayOptions: {
+					show: {
+						resource: ['account'],
+						operation: ['runAction'],
+					},
+				},
+				description: "The name of one of the account's actions, as Get Actions lists them",
+			},
+			{
+				displayName: 'Input',
+				name: 'actionInput',
+				type: 'json',
+				default: '{}',
+				displayOptions: {
+					show: {
+						resource: ['account'],
+						operation: ['runAction'],
+					},
+				},
+				description:
+					'The action\'s input as JSON, as its input in Get Actions describes, e.g. {"name": "Recipes"}',
 			},
 			{
 				displayName: 'Filters',
@@ -2201,6 +2243,35 @@ export class Mixpost implements INodeType {
 						requestMethod = 'GET';
 						const accountUuid = this.getNodeParameter('accountUuid', i) as string;
 						endpoint = `/api/${workspaceUuid}/accounts/${accountUuid}`;
+					} else if (operation === 'getActions') {
+						requestMethod = 'GET';
+						const accountUuid = this.getNodeParameter('accountUuid', i) as string;
+						endpoint = `/api/${workspaceUuid}/accounts/${accountUuid}/actions`;
+					} else if (operation === 'runAction') {
+						requestMethod = 'POST';
+						const accountUuid = this.getNodeParameter('accountUuid', i) as string;
+						const actionName = (this.getNodeParameter('actionName', i) as string).trim();
+						endpoint = `/api/${workspaceUuid}/accounts/${accountUuid}/actions/${encodeURIComponent(
+							actionName,
+						)}`;
+
+						const input = this.getNodeParameter('actionInput', i, '{}') as string | IDataObject;
+
+						if (typeof input !== 'string') {
+							body = input;
+						} else if (input.trim() !== '') {
+							try {
+								body = JSON.parse(input);
+							} catch {
+								throw new NodeOperationError(
+									this.getNode(),
+									'Input must be valid JSON, e.g. {"name": "Recipes"}',
+									{
+										itemIndex: i,
+									},
+								);
+							}
+						}
 					} else if (operation === 'getAll') {
 						requestMethod = 'GET';
 						endpoint = `/api/${workspaceUuid}/accounts`;

@@ -98,7 +98,11 @@ A version's **Options** set what each network does with the post, one **Provider
 | Operation | Description |
 |-----------|-------------|
 | **Get** | Retrieve details of a specific social media account |
+| **Get Actions** | List what only the account's platform does, with the input each action takes |
 | **Get Many** | List the connected social media accounts in your workspace, filtered by keyword, platform, group or lost connection |
+| **Run Action** | Run one of the account's actions, with its input as JSON |
+
+Pinterest accounts have two actions: `list-boards` reads the boards from Pinterest, and `create-board` creates one, e.g. Input `{"name": "Recipes", "privacy": "SECRET"}`. The board ids they return work right away in a post's `pinterest` / `boards` option.
 
 ### 📈 Analytics
 | Operation | Description |

@@ -1,0 +1,47 @@
+# Publishes the package to npm with a provenance statement when a version tag is pushed.
+# n8n requires this for verified community nodes since May 1, 2026.
+#
+# One-time setup: on npmjs.com, open the package settings → Publish access → Trusted Publishers,
+# add GitHub Actions with owner "inovector", repository "n8n-nodes-mixpost" and workflow "publish.yml".
+# No npm token is stored in the repository.
+#
+# Release: bump "version" in package.json on main, then push a matching tag:
+#   git tag v1.4.0 && git push origin v1.4.0
+
+name: Publish
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+jobs:
+  publish:
+    name: Publish to npm
+    runs-on: ubuntu-latest
+
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          registry-url: 'https://registry.npmjs.org'
+          cache: 'npm'
+
+      - name: Check the tag matches package.json
+        run: |
+          version="$(node -p "require('./package.json').version")"
+          if [ "v$version" != "$GITHUB_REF_NAME" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME does not match package.json version $version"
+            exit 1
+          fi
+
+      - run: npm ci
+
+      # prepublishOnly builds and lints before publishing.
+      - run: npm publish --provenance --access public
